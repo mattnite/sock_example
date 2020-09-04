@@ -1,25 +1,13 @@
 const std = @import("std");
 usingnamespace std.os.linux.BPF.kern;
+usingnamespace @import("common.zig");
 
 const c = @cImport({
     @cInclude("linux/if_packet.h");
     @cInclude("linux/if_ether.h");
 });
 
-export const counters linksection("maps") = Map(u32, std.atomic.Int(usize), .array, 256).init();
-
-const iphdr = extern struct {
-    i_dont_care: u8,
-    tos: u8,
-    tot_len: u16,
-    id: u16,
-    frag_off: u16,
-    ttl: u8,
-    protocol: u8,
-    check: u16,
-    saddr: u32,
-    daddr: u32,
-};
+export const counters linksection("maps") = Map(u32, usize, .array, 256).init();
 
 extern fn @"llvm.bpf.load.byte"(skb: ?*c_void, off: c_ulonglong) c_ulonglong;
 
@@ -30,7 +18,7 @@ export fn bpf_prog1(skb: *__sk_buff) linksection("socket1") c_int {
     }
 
     if (counters.lookup(&index)) |value| {
-        _ = value.fetchAdd(skb.len);
+        _ = @atomicRmw(usize, value, .Add, 1, .SeqCst);
     }
 
     return 0;
